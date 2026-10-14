@@ -1,0 +1,8 @@
+[00:00:00.000 -> 00:00:04.200] Host: Thanks for jumping on. Quick one today, just the spring newsletter.
+[00:00:04.200 -> 00:00:09.800] Guest: Sure. The draft is mostly done, the photos are the holdup.
+[00:00:09.800 -> 00:00:14.500] Host: I'll send you the photo folder by Friday.
+[00:00:14.500 -> 00:00:19.100] Guest: Great. Can you also check the event dates with the venue?
+[00:00:19.100 -> 00:00:23.600] Host: Yes, I will call the venue tomorrow morning.
+[00:00:23.600 -> 00:00:28.000] Guest: Then we need to pick a headline before the layout goes out.
+[00:00:28.000 -> 00:00:31.400] Host: Let's do that on Monday. Anything else?
+[00:00:31.400 -> 00:00:34.000] Guest: No, that's it. Talk soon.

@@ -1,0 +1,14 @@
+{
+  "title": "Action items",
+  "subtitle": "render fixture",
+  "date": "2026-01-01",
+  "sections": [
+    {
+      "heading": "Action items",
+      "kind": "tasks",
+      "items": [
+        {"task": "Send photo folder", "detail": "\"I'll send you the photo folder by Friday.\"  owner: Host"}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "note": "Extensible meeting-type registry for the meeting-loop skill. The classifier matches a recording against these types, PROPOSES one, and confirms with the owner (never silently files). When nothing matches confidently, it ASKS the owner what kind of meeting it is and offers to append a NEW type here so it's known next time. Ask-don't-assume is the rule everywhere: routing targets (which client / band / group / project / brand) are always confirmed with a question, never inferred.",
+  "principles": [
+    "Classify by proposing, then confirm. the owner can override with one word.",
+    "Never guess a routing target. Ask which client / band / group / project / brand it belongs to.",
+    "When the type is unclear or novel, ask the owner to name it and capture it as a new type.",
+    "The shared spine (local transcription, speaker attribution, People-firewall, privacy routing) runs for every type. Only home + output_shape + lens + enrich flags change per type.",
+    "After synthesis, list the action items with who does each. Do nothing outside the brain until the owner gives an explicit go, and confirm every one-way door (send/deploy/publish/pay)."
+  ],
+  "types": [
+    {
+      "id": "client",
+      "label": "Client meeting / call / site visit",
+      "aliases": ["meeting-loop", "client call", "site visit", "kickoff", "discovery call"],
+      "signals": ["a client or company name the owner has worked with", "scope, deliverables, pricing, timeline, or proposal talk", "vendor to buyer framing"],
+      "home": "Projects/<client-slug>/  (confirm the folder name with the owner)",
+      "clarify": ["Which client is this? (confirm the folder name)", "What engagement / topic folder does it belong under?"],
+      "output_shape": "two-sided-action-items",
+      "lens": "what they said they want vs what they actually want; My side / Their side; decisions; clarity questions; products + pricing reference",
+      "people_enrich": true,
+      "ai_handoff": true,
+      "sensitive_default": false,
+      "extras": ["living client-profile.md with dated change log", "small HTML action-items view + JSON export (Step 8d, default)"]
+    },
+    {
+      "id": "personal",
+      "label": "Personal / friend 1:1",
+      "aliases": ["friend", "catch-up", "coffee", "chill one-on-one", "hang"],
+      "signals": ["a person from People/ with no client or company frame", "casual, life, relationship, or fun conversation", "no deliverable, no pricing, no scope"],
+      "home": "Personal/  +  folds into People/<name>.md  (confirm who)",
+      "clarify": ["Who is this with? (confirm the People/ note)", "Anything from this you want tracked as a to-do, or just remembered?"],
+      "output_shape": "light-notes",
+      "lens": "what I said I'd do; what's worth remembering about them; open follow-ups",
+      "people_enrich": true,
+      "ai_handoff": true,
+      "sensitive_default": true,
+      "extras": []
+    },
+    {
+      "id": "creative",
+      "label": "Creative / music / writing session",
+      "aliases": ["songwriting", "song session", "co-write", "writing session", "music", "studio", "jam"],
+      "signals": ["singing, lyrics, melody, takes, chords, arrangement", "brainstorming ideas, hooks, story beats, concepts", "no client, deliverable, or pricing framing"],
+      "home": "the project / band folder (ASK which)  — else Inbox/creative/",
+      "clarify": ["Who or what is this for — which band, group, artist, or project?", "Where should the session note live?", "Should I chart it with song-loop?"],
+      "output_shape": "session-note",
+      "lens": "ideas and hooks raised; directions tried and what worked; creative to-dos (finish verse 2, try the key change, re-track the bridge); references and inspirations dropped",
+      "people_enrich": false,
+      "ai_handoff": true,
+      "sensitive_default": false,
+      "extras": [
+        "local Basic Pitch chord chart (chords.md) on the tape (Step 4b)",
+        "can hand to song-loop for a lyric + chord chart if it's a song"
+      ]
+    },
+    {
+      "id": "dev",
+      "label": "Dev / build session (code, apps, tools)",
+      "aliases": ["build session", "dev meeting", "code session", "feature planning", "app planning", "build grill", "engineering session"],
+      "signals": ["talk of building an app, tool, site feature, or automation", "code, APIs, databases, deploys, bugs, architecture, repos", "requirements / 'it should do X' / edge-case talk with no client-vendor pricing frame"],
+      "home": "the project's repo or notes folder (ASK which project)  — else Inbox/dev/",
+      "clarify": ["Which project or repo is this for — or is it a brand-new build?", "Which brand owns it (a product line? internal tool? client build)?", "Ship intent: exploring, or building for real?"],
+      "output_shape": "build-brief",
+      "lens": "what to build and why; requirements and constraints AS STATED (quote them); decisions made vs open unknowns; each build item sized (quick fix / feature / full build) so it can route to the right engineering entry point",
+      "people_enrich": false,
+      "ai_handoff": true,
+      "sensitive_default": false,
+      "extras": [
+        "build items are handed off, not run here: the plan emits the brief path + the command ladder for that item's size + a paste-ready seed prompt for a fresh window",
+        "ladder by size: full build -> /explore-options -> /grill-with-docs -> /to-spec -> /to-tickets -> /implement; scoped feature -> same minus /explore-options; quick fix -> /implement alone, or /diagnosing-bugs if something is broken",
+        "the build-brief's open-unknowns section is the grill's input — a fresh session reads the brief first so it doesn't re-ask what the recording already answered",
+        "non-code items (design, copy, emails, research, purchases) come from the brief's section 6 and land as ordinary action items"
+      ]
+    },
+    {
+      "id": "work",
+      "label": "Work / internal / generic meeting",
+      "aliases": ["internal", "team meeting", "brand meeting", "planning", "standup", "generic", "unknown"],
+      "signals": ["internal team or brand talk", "decisions with owners", "anything that isn't clearly one of the above"],
+      "home": "the relevant project folder (ASK which)  — else Inbox/",
+      "clarify": ["Which brand or project is this for?", "Where should the note land?"],
+      "output_shape": "decisions-and-action-items",
+      "lens": "decisions made; action items by owner (Mine / Theirs / named owner); worth remembering; open questions",
+      "people_enrich": true,
+      "ai_handoff": true,
+      "sensitive_default": false,
+      "extras": [
+
+      ]
+    },
+    {
+      "id": "conference-teaching",
+      "label": "Conference / teaching session (board or stage recording)",
+      "aliases": ["conference", "teaching", "sermon", "pastors conference", "retreat session", "keynote"],
+      "signals": ["stage audio: one speaker teaching a room, worship sets, scripture readings", "announcements, benedictions, 'get into your groups' breaks", "board / Logic bounce, not a phone on a table; long silent gaps between sessions"],
+      "home": "the hosting church / org folder (ASK which) — notes under <home>/notes/<date>_<topic>/",
+      "clarify": ["Which church / org is this for?", "Which day / session is each block?"],
+      "output_shape": "teaching-notes",
+      "lens": "per speaker: main points, scriptures cited, quotes worth keeping, one-line story beats (no pastoral detail), practices or takeaways given to the room; then session flow (songs, readings, announcements) and any follow-ups for the owner",
+      "people_enrich": false,
+      "ai_handoff": true,
+      "sensitive_default": true,
+      "extras": [
+        "speaker names come only from what is said on stage — never from People/",
+        "testimonies, grief, church conflict and prayer requests stay in the private transcript, never in shared notes",
+        "crew / booth chatter at the edges is cut from shared notes"
+      ]
+    }
+  ]
+}

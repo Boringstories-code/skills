@@ -1,0 +1,44 @@
+# known-bad.txt — seed indicators matched as plain substrings against every scanned file.
+# One indicator per line. Lines starting with # are comments. Keep this conservative:
+# every entry here fires a CRITICAL, so only put things that are genuinely bad in any skill/tool.
+# Grow this list as new supply-chain attacks surface (npm/pypi advisories, your own catches).
+
+# --- exfil sinks that should never appear in a legitimate Claude skill ---
+oast.fun
+oast.pro
+interactsh
+burpcollaborator.net
+canarytokens
+dnslog.cn
+ceye.io
+
+# --- crypto-miner / coin-stealer signatures ---
+coinhive
+cryptonight
+stratum+tcp
+xmrig
+minerd
+
+# --- known-malicious / typosquat package names (npm + pypi historical incidents) ---
+# (substring match — keep specific enough to avoid false hits on legit words)
+event-stream@3.3.6
+flatmap-stream
+electron-native-notify
+eslint-scope@3.7.2
+colourama
+python3-dateutil
+jeIlyfish
+crossenv
+node-fabric
+loadyaml
+ua-parser-js@0.7.29
+coa@2.0.3
+rc@1.2.9
+
+# --- clipboard / wallet hijack ---
+clipboardy.*write.*0x
+sweatcoin
+
+# --- common malware staging filenames ---
+/tmp/.X11-unix/
+.bashrc.bak.sh

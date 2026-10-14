@@ -1,0 +1,7 @@
+{
+  "summary": "A short check-in on the spring newsletter: photos are the holdup and the venue dates need confirming.",
+  "action_items": [
+    {"task": "Send photo folder", "quote": "I'll send you the photo folder by Friday."},
+    {"task": "Book a rocket", "quote": "We agreed to book a rocket for the launch party."}
+  ]
+}

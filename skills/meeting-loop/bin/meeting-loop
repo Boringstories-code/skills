@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# meeting-loop — command entry point. Resolves symlinks so it can be linked onto PATH.
+set -euo pipefail
+src="${BASH_SOURCE[0]}"
+while [ -L "$src" ]; do
+  dir="$(cd "$(dirname "$src")" && pwd)"; src="$(readlink "$src")"
+  [[ "$src" != /* ]] && src="$dir/$src"
+done
+root="$(cd "$(dirname "$src")/.." && pwd)"
+# An installed copy (install.sh) carries its own engine venv beside it.
+if [ -z "${CML_ENV_DIR:-}" ] && [ -d "$root/venv" ]; then export CML_ENV_DIR="$root/venv"; fi
+exec python3 "$root/scripts/meeting_loop.py" "$@"

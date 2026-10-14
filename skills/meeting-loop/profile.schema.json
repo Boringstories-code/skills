@@ -1,0 +1,880 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "meeting-loop/profile.schema.json",
+  "title": "Meeting Loop install profile",
+  "description": "One install = one profile. Answers the questions that change behavior; everything else is engine. Written by hand or by the agent on request, amended by the loop itself at runtime (reviewed edit, same pattern as meeting-types.json).",
+  "type": "object",
+  "required": [
+    "version",
+    "install",
+    "owner",
+    "environment",
+    "brain",
+    "distillation",
+    "privacy",
+    "capture",
+    "execution"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "install": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "display_name",
+        "created"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "slug, e.g. 'owner' or 'northwind-agency'"
+        },
+        "kind": {
+          "enum": [
+            "person",
+            "company"
+          ],
+          "description": "Drives owner mode, private-channel defaults, consent + retention requirements, and gate shape."
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "created": {
+          "type": "string",
+          "format": "date"
+        },
+        "last_confirmed": {
+          "type": "string",
+          "format": "date",
+          "description": "Whole-profile freshness. Loop re-asks stale decisions when they bite."
+        }
+      }
+    },
+    "owner": {
+      "type": "object",
+      "description": "Who 'my side' means. A person install has one; a company install must resolve an owner PER RUN or carry a roster.",
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "single",
+            "per-run",
+            "roster"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "description": "single mode only"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "roster_path": {
+          "type": "string",
+          "description": "roster mode: file listing people + roles; used for owner-tagged action items and recap recipients"
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "required": [
+        "asr"
+      ],
+      "properties": {
+        "os": {
+          "enum": [
+            "darwin-arm64",
+            "darwin-x86",
+            "linux",
+            "wsl",
+            "other"
+          ]
+        },
+        "ffmpeg": {
+          "type": "boolean"
+        },
+        "asr": {
+          "type": "object",
+          "properties": {
+            "engine": {
+              "enum": [
+                "mlx-whisper",
+                "faster-whisper",
+                "whisper-cpp",
+                "external"
+              ],
+              "default": "mlx-whisper"
+            },
+            "model": {
+              "type": "string",
+              "default": "mlx-community/whisper-large-v3-turbo"
+            },
+            "venv_root": {
+              "type": "string",
+              "description": "machine-local, NEVER inside a synced/committed directory"
+            }
+          }
+        },
+        "hf_allowed": {
+          "type": "boolean",
+          "description": "false => never offer pyannote; diarizer order starts at diarize_no_hf.py"
+        },
+        "diarizer_preference": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "two_mic",
+              "n_mic",
+              "no_hf",
+              "pyannote",
+              "none"
+            ]
+          }
+        },
+        "llm": {
+          "type": "object",
+          "description": "Which language model serves each lane. The ENGINE needs no LLM at all (ASR is a speech model, diarization is clustering, routing/merge/render are deterministic). Only the synthesis lanes do. See references/llm-tiers.md.",
+          "properties": {
+            "mode": {
+              "enum": [
+                "none",
+                "local",
+                "cloud-small",
+                "cloud-frontier",
+                "split"
+              ],
+              "default": "split",
+              "description": "none = deterministic pipeline only, output is a transcript + candidate-item list a human triages. local = on-device (Ollama/llama.cpp) for installs that may not send transcripts off the machine. split = small model on the volume lane, frontier on the judgment lane (recommended)."
+            },
+            "volume_lane": {
+              "type": "string",
+              "description": "cleaning + classification triage. Long inputs, mechanical work, parallel. Cheapest capable model wins."
+            },
+            "judgment_lane": {
+              "type": "string",
+              "description": "intent decode, note merges, execution planning, distillation dedup. Short inputs, expensive mistakes. Do not economize here."
+            },
+            "egress_allowed": {
+              "type": "boolean",
+              "default": true,
+              "description": "false => transcripts must never leave the machine. Forces mode to none|local and caps distillation. Set true only when the consent policy and the destination actually permit it."
+            },
+            "max_level_without_llm": {
+              "const": "L0",
+              "description": "With mode:none the pipeline cannot exceed capture-only. Entity merges and concept dedup are judgment, not string matching."
+            }
+          }
+        }
+      }
+    },
+    "brain": {
+      "type": "object",
+      "description": "The user's knowledge architecture. See references/brain-adapters.md for the adapter contract and write strategies.",
+      "required": [
+        "adapter",
+        "root",
+        "capability"
+      ],
+      "properties": {
+        "adapter": {
+          "enum": [
+            "obsidian",
+            "logseq",
+            "plain-folders",
+            "project-brain",
+            "git-repo-docs",
+            "notion",
+            "none"
+          ]
+        },
+        "root": {
+          "type": "string",
+          "description": "absolute path or workspace handle"
+        },
+        "capability": {
+          "enum": [
+            "direct-write",
+            "handoff"
+          ],
+          "description": "direct-write = filesystem. handoff = we emit files and the user/API imports them; never claim a write we cannot make."
+        },
+        "link_dialect": {
+          "enum": [
+            "wikilink",
+            "markdown-link",
+            "block-ref",
+            "none"
+          ]
+        },
+        "frontmatter": {
+          "type": "boolean"
+        },
+        "granularity": {
+          "enum": [
+            "note-per-meeting",
+            "atomic-pages",
+            "append-to-running-doc",
+            "db-rows"
+          ]
+        },
+        "merge_policy": {
+          "enum": [
+            "append-dated-block",
+            "rewrite-section",
+            "new-note-and-link",
+            "upsert"
+          ]
+        },
+        "folder_map": {
+          "type": "object",
+          "description": "Per output artifact, where it lands. Keys are artifact ids; values are paths relative to root. Missing key = ask before first write.",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "examples": [
+            {
+              "meeting_notes": "Meetings/",
+              "inbox": "Inbox/",
+              "entity_notes": "Projects/",
+              "concept_wiki": "wiki/",
+              "private_root": "Private/"
+            }
+          ]
+        },
+        "entity_registry": {
+          "type": "string",
+          "description": "optional file listing known clients/projects/bands so routing targets can be CONFIRMED against a list instead of typed free-hand"
+        },
+        "conventions_doc": {
+          "type": "string",
+          "description": "optional path to the brain's own rules (CLAUDE.md, README, style guide). Read at Step 0 so output matches house style instead of imposing ours."
+        }
+      }
+    },
+    "distillation": {
+      "type": "object",
+      "required": [
+        "level"
+      ],
+      "properties": {
+        "level": {
+          "enum": [
+            "L0",
+            "L1",
+            "L2"
+          ],
+          "description": "L0 capture-only (transcript + action items, no knowledge extraction). L1 entity-notes (living per-entity notes merged). L2 atomic-concepts (reusable concepts wicked into a wiki). L2 requires link_dialect != none AND an existing wiki."
+        },
+        "engine": {
+          "type": "string",
+          "description": "skill that performs L2, e.g. second-brain-ingest, project-brain. null when level < L2."
+        },
+        "decoupled": {
+          "type": "boolean",
+          "default": true,
+          "description": "true = extract now, distill later (background/on-command). Heavy semantic passes must never block the action-items lane."
+        },
+        "never_distill": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "raw_audio",
+            "raw_transcript",
+            "private_channels"
+          ]
+        },
+        "cite_back": {
+          "type": "boolean",
+          "default": true,
+          "description": "every distilled claim links to the meeting note it came from"
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "required": [
+        "destination_shared",
+        "audience"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "destination_shared": {
+                "const": true
+              }
+            },
+            "required": [
+              "destination_shared"
+            ]
+          },
+          "then": {
+            "required": [
+              "private_root"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "destination_shared": {
+          "type": "boolean",
+          "description": "Is the brain root synced, pushed, or shared with anyone? THE safety-critical answer. true => privacy routing is load-bearing, not decorative, and private_root becomes required."
+        },
+        "audience": {
+          "enum": [
+            "solo-sync",
+            "private-remote",
+            "team",
+            "public"
+          ],
+          "description": "WHO can see the shared destination. One boolean cannot distinguish a solo multi-device sync from a public repo, and the right routing differs: solo-sync leaks only to your own devices; private-remote leaks into git history; team leaks to colleagues (changes the Channel B calculus); public leaks to everyone."
+        },
+        "vcs_autocommit": {
+          "type": "boolean",
+          "description": "true = something auto-commits this tree (cron, sync daemon). A 'PRIVATE' banner is not a control in that case."
+        },
+        "private_root": {
+          "type": "string",
+          "description": "Absolute path OUTSIDE the shared tree for sensitive transcripts + raw. Required when destination_shared is true. Step 0 REFUSES a private_root that resolves under brain.root while vcs_autocommit is true — that is the leak the field exists to prevent, and a warning is not enough."
+        },
+        "private_root_exception": {
+          "type": "object",
+          "description": "Only way to run a private_root inside the shared tree. Requires an explicit, dated, human justification. Absent this, Step 0 refuses.",
+          "required": [
+            "reason",
+            "accepted_on",
+            "accepted_by"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string"
+            },
+            "accepted_on": {
+              "type": "string",
+              "format": "date"
+            },
+            "accepted_by": {
+              "type": "string"
+            }
+          }
+        },
+        "sensitive_default_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "meeting-type ids that route sensitive by default"
+        },
+        "channels": {
+          "type": "object",
+          "properties": {
+            "people": {
+              "type": "object",
+              "description": "Channel B — private dossiers on OTHER humans. Default OFF for company installs (HR/legal surface).",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "root": {
+                  "type": "string"
+                },
+                "name_map": {
+                  "type": "string",
+                  "description": "answer key for transcript mis-hears and look-alike names"
+                },
+                "template": {
+                  "type": "string"
+                },
+                "asks_log": {
+                  "type": "string"
+                }
+              }
+            },
+            "identity": {
+              "type": "object",
+              "description": "Channel C — the OWNER's own durable belief-lines. Off unless an identity root exists.",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "root": {
+                  "type": "string"
+                },
+                "identity_file": {
+                  "type": "string"
+                },
+                "distill_command": {
+                  "type": "string",
+                  "description": "Invoked as part of meeting-loop Step 7c after the Channel C drop (not deferred)."
+                }
+              }
+            },
+            "ai_handoff": {
+              "type": "object",
+              "description": "Channel D — AI-command extraction (Step 7d). Lines addressed to an AI agent become a separate, paste-ready handoff with waves, gates and an inline grill. Default ON; per-type opt-out via meeting-types.json ai_handoff: false.",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "queue_path": {
+                  "type": "string",
+                  "description": "central finder index dir; default Inbox/handoffs/ai-queue"
+                },
+                "default_target": {
+                  "type": "string",
+                  "description": "agent slug used when the speaker says 'the AI' / 'have it' with no name; default claude"
+                },
+                "marker_spans": {
+                  "type": "object",
+                  "description": "how the owner flags work live: handing the floor to an agent opens a marked span, taking it back closes it, and everything between becomes items even with no agent addressed. These are EXAMPLES of an intent for a judgment agent, not a match list. Per-machine: this skill is shared, the profile is not.",
+                  "properties": {
+                    "open": { "type": "array", "items": { "type": "string" } },
+                    "close": { "type": "array", "items": { "type": "string" } }
+                  }
+                },
+                "targets": {
+                  "type": "array",
+                  "description": "agents this install knows. ANY agent name spoken in a meeting is still captured (slugged as spoken); this list only adds labels, aliases and paste notes.",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "slug"
+                    ],
+                    "properties": {
+                      "slug": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "aliases": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "paste_note": {
+                        "type": "string",
+                        "description": "one line shown above that target's paste block"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "consent": {
+          "type": "object",
+          "properties": {
+            "policy": {
+              "enum": [
+                "self-recorded",
+                "all-parties-notified",
+                "written-consent-required",
+                "unknown"
+              ]
+            },
+            "jurisdiction_note": {
+              "type": "string",
+              "description": "e.g. two-party-consent state; surfaced once per new participant"
+            }
+          }
+        },
+        "retention": {
+          "type": "object",
+          "properties": {
+            "raw_audio_days": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "null = keep forever"
+            },
+            "transcript_days": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "enforcement": {
+              "enum": [
+                "report-only",
+                "prompt-to-delete"
+              ],
+              "default": "report-only"
+            }
+          }
+        }
+      }
+    },
+    "capture": {
+      "type": "object",
+      "description": "How they ACTUALLY record. Sets attribution expectations honestly up front instead of after disappointment.",
+      "properties": {
+        "method": {
+          "enum": [
+            "two-mic",
+            "n-mic",
+            "single-mic-worn",
+            "phone-on-table",
+            "platform-recording",
+            "mixed"
+          ]
+        },
+        "attribution_expectation": {
+          "enum": [
+            "full",
+            "partial",
+            "none"
+          ]
+        },
+        "typical_speakers": {
+          "type": "integer"
+        },
+        "vocab_prime": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "proper nouns + jargon passed to --prompt so the ASR stops mangling them"
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "description": "Step 8f. What gets DONE vs listed.",
+      "required": [
+        "enabled"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "gate": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "enum": [
+                "person",
+                "role"
+              ]
+            },
+            "approver": {
+              "type": "string",
+              "description": "person name, or role title for company installs"
+            }
+          }
+        },
+        "dispatch_via": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Ordered agent chain every execution task routes through, to keep main context lean (e.g. ['lead-agent','specialist-agent']). Empty = dispatch directly. Step 8f must NOT hardcode a chain.",
+          "examples": [
+            [],
+            [
+              "lead-agent",
+              "specialist-agent"
+            ]
+          ]
+        },
+        "integrations": {
+          "type": "array",
+          "description": "What this install can actually DO. An integration not listed here never appears in an execution plan AND never fires as a standalone offer (Step 10 included).",
+          "items": {
+            "type": "object",
+            "required": [
+              "capability",
+              "runner"
+            ],
+            "properties": {
+              "capability": {
+                "type": "string",
+                "description": "e.g. website-edit, client-email, proposal, task-tracker, crm-push"
+              },
+              "runner": {
+                "type": "string",
+                "description": "skill/agent/command that performs it"
+              },
+              "target": {
+                "type": "string",
+                "description": "WHERE it acts — endpoint, database, account handle, repo. Without this a runner script points wherever it was authored to point, which on a copied profile is someone else's production system."
+              },
+              "client_facing": {
+                "type": "boolean"
+              },
+              "irreversible": {
+                "type": "boolean",
+                "description": "send/deploy/publish/pay — gets its own confirm at the moment of action, even after plan approval"
+              },
+              "invocable_by_model": {
+                "type": "boolean",
+                "default": true,
+                "description": "false => emit a HANDOFF block, never a task line claiming we ran it"
+              },
+              "handoff": {
+                "type": "object",
+                "description": "Required when invocable_by_model is false. Step 8f renders the handoff FROM THIS, never from a hardcoded ladder — an install without those commands must not be told to run them.",
+                "properties": {
+                  "brief_artifact": {
+                    "type": "string",
+                    "description": "the artifact the next session reads first"
+                  },
+                  "ladder": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "ordered commands for this item's size; may be keyed by size in the seed prompt"
+                  },
+                  "seed_prompt": {
+                    "type": "string",
+                    "description": "paste-ready line that opens the fresh session, naming the brief path"
+                  },
+                  "prereq": {
+                    "type": "string",
+                    "description": "setup that must exist first, e.g. an issue tracker"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "client_facing_gate": {
+          "type": "string",
+          "description": "voice/quality gate every outward artifact passes, e.g. a voice or style-guide checker. null = none configured; say so plainly rather than implying a check happened."
+        }
+      }
+    },
+    "compliance": {
+      "type": "object",
+      "description": "Field-specific obligations. Grounded in references/field-requirements.md (research 2026-08-23). Absent = unregulated personal install; every gate below is off. NOT legal advice — this encodes what the research found so the tool asks instead of assuming.",
+      "properties": {
+        "regime": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "hipaa",
+              "42cfr-part2",
+              "ferpa",
+              "idea",
+              "glba",
+              "nydfs-500",
+              "sec-17a-4",
+              "finra-4511",
+              "mifid-ii",
+              "irb-common-rule",
+              "fda-part-11",
+              "legal-privilege",
+              "open-meetings",
+              "gdpr",
+              "eu-ai-act",
+              "bipa",
+              "none"
+            ]
+          },
+          "description": "Which regimes apply. Drives every gate below. Multiple is normal — a research hospital is hipaa + irb-common-rule + fda-part-11."
+        },
+        "processor_contract": {
+          "enum": [
+            "baa",
+            "dpa",
+            "school-official",
+            "d3p-undertaking",
+            "none"
+          ],
+          "description": "The contract that makes cloud egress lawful. `llm.egress_allowed: true` WITHOUT one of these is the single most common violation in this product category — a staffer's personal notetaker account is not covered by any of them. HIPAA needs a BAA; FERPA needs the §99.31(a)(1) school-official exception with direct control; SEC 17a-4(f) needs a designated-third-party undertaking."
+        },
+        "originals": {
+          "type": "object",
+          "description": "Distinct from retention. Several regimes require the ORIGINAL be captured and preserved BEFORE any AI processing, because the summary is only ever a derivative.",
+          "properties": {
+            "preserve_before_processing": {
+              "type": "boolean"
+            },
+            "immutable": {
+              "type": "boolean",
+              "description": "WORM or the 17a-4(f) audit-trail alternative"
+            },
+            "summary_may_be_the_record": {
+              "type": "boolean",
+              "default": false,
+              "description": "false in every field researched. Government minutes are a required summary, but the CLERK certifies them — the AI output is still a draft."
+            }
+          }
+        },
+        "audit_trail": {
+          "type": "boolean",
+          "description": "Record which audio, which model and version, what was edited, by whom, when. Entry ticket for financial services (17a-4(f)), Part 11/ALCOA+ for research, and reproducibility for insurance bad-faith discovery."
+        },
+        "review_required": {
+          "type": "boolean",
+          "description": "An artifact is a DRAFT until a named human reviews it. Unreviewed AI output is discoverable and can convert hedged statements into apparent admissions. Also the CA AB 3030 exemption route."
+        },
+        "legal_hold": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, the Step 8 retention sweep is SUSPENDED — no deletion offers, no expiry reporting as actionable. Overrides both retention minimums and mandatory-destruction duties."
+        },
+        "segregated_artifacts": {
+          "type": "boolean",
+          "description": "This meeting type must emit TWO artifacts with different governance, never one merged note. Required for psychotherapy: under 45 CFR 164.501 merging process notes with diagnosis/progress/billing destroys the §164.508 authorization protection. Emit two or none."
+        },
+        "biometric_processing": {
+          "type": "object",
+          "description": "Acoustic diarization computes speaker embeddings — that is voiceprint extraction, regulated under BIPA and Art. 9 GDPR, and pleaded in In re Otter.AI. Two-mic energy comparison builds no embedding and is exempt.",
+          "properties": {
+            "allowed": {
+              "type": "boolean",
+              "default": true
+            },
+            "consent_basis": {
+              "type": "string",
+              "description": "required when allowed is true and a biometric regime is in scope"
+            }
+          }
+        },
+        "inference_limits": {
+          "type": "object",
+          "description": "EU AI Act Art. 5(1)(f), live since 2026-02-02, prohibits inferring emotions in workplace and education contexts.",
+          "properties": {
+            "emotion_inference": {
+              "type": "boolean",
+              "default": true,
+              "description": "false => Channel B must not characterize temperament, mood, or decision style. Set false for EU workplace/education installs regardless of install.kind."
+            },
+            "scoring_ranking": {
+              "type": "boolean",
+              "default": true,
+              "description": "false => never score, rank, or recommend on people. true in a hiring context pulls you into AI Act Annex III point 4 and NYC LL144."
+            }
+          }
+        },
+        "consent_matrix": {
+          "type": "object",
+          "description": "Consent is not a flat state list — the medium is a second dimension (Oregon is all-party in person, one-party by phone) and multi-state calls key off EVERY participant's location, not the host's.",
+          "properties": {
+            "participant_jurisdictions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "medium": {
+              "enum": [
+                "in-person",
+                "phone",
+                "video",
+                "mixed"
+              ]
+            },
+            "rule": {
+              "enum": [
+                "one-party",
+                "all-party",
+                "notify-only",
+                "written-opt-in",
+                "unknown"
+              ]
+            },
+            "works_council_required": {
+              "type": "boolean",
+              "description": "DE §87(1) no.6 BetrVG triggers on technical CAPABILITY to monitor, not intent — speaker attribution alone can trigger it. NL WOR Art. 27 is a consent right. Employee consent does NOT substitute. Blocks rollout until agreed."
+            }
+          }
+        },
+        "refuse_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Meeting types this install must refuse outright rather than judge at runtime — e.g. group therapy (multiple patients' PHI in one file), closed executive session (TX §551.104(c) disclosure is a Class B misdemeanor), anonymous-source interviews on a cloud path."
+        }
+      }
+    },
+    "types_registry": {
+      "type": "string",
+      "default": "meeting-types.json",
+      "description": "path to this install's meeting-type registry. Generated by the grill from the types the user ACTUALLY records — not the five shipped defaults."
+    },
+    "decisions": {
+      "type": "array",
+      "description": "Decay ledger. Every grill answer recorded with its date. When a decision bites at runtime and is older than the staleness window, the loop re-asks it instead of trusting it.",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "answer",
+          "asked_on"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "D1..D9"
+          },
+          "answer": {},
+          "asked_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "last_confirmed": {
+            "type": "string",
+            "format": "date"
+          },
+          "source": {
+            "enum": [
+              "detected",
+              "asked",
+              "calibrated",
+              "amended"
+            ],
+            "description": "detected answers never count as confirmed decisions"
+          }
+        }
+      }
+    },
+    "archive": {
+      "type": "object",
+      "description": "Optional. Where raw audio is MIRRORED after Step 8 files land. Absent means Step 8i is skipped entirely — never upload someone else's audio to a remote they did not name.",
+      "properties": {
+        "drive_mirror": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "false or absent → Step 8i does not run."
+            },
+            "remote": {
+              "type": "string",
+              "description": "Name of an already-configured remote. The skill never configures one."
+            },
+            "root": {
+              "type": "string",
+              "description": "Top folder on the remote. Default 'Meeting Loop'."
+            },
+            "mirror_sensitive": {
+              "type": "boolean",
+              "description": "Mirror recordings Step 8 routed to privacy.private_root. Default false — the audio would otherwise leave the private root."
+            }
+          },
+          "required": [
+            "enabled"
+          ]
+        }
+      }
+    }
+  }
+}
